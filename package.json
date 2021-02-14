@@ -1,0 +1,26 @@
+{
+  "name": "graphql-live",
+  "version": "0.0.1",
+  "description": "Live query implementation for GraphQL",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ostrebler/graphql-live.git"
+  },
+  "keywords": [
+    "live",
+    "query",
+    "graphql",
+    "subscription",
+    "change",
+    "update",
+    "sync",
+    "mutation"
+  ],
+  "author": "ostrebler",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ostrebler/graphql-live/issues"
+  },
+  "homepage": "https://github.com/ostrebler/graphql-live#readme"
+}
