@@ -1,7 +1,12 @@
 {
-  "name": "graphql-live",
+  "name": "@graphql-live/client",
   "version": "0.0.1",
-  "description": "Live query implementation for GraphQL",
+  "description": "The client part of the graphql-live package",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ostrebler/graphql-live.git"
@@ -14,12 +19,16 @@
     "change",
     "update",
     "sync",
-    "mutation"
+    "mutation",
+    "client"
   ],
   "author": "ostrebler",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/ostrebler/graphql-live/issues"
   },
-  "homepage": "https://github.com/ostrebler/graphql-live#readme"
+  "homepage": "https://github.com/ostrebler/graphql-live#readme",
+  "devDependencies": {
+    "typescript": "^4.1.5"
+  }
 }
