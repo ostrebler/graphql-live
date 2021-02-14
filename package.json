@@ -2,7 +2,9 @@
   "name": "graphql-live",
   "version": "0.0.1",
   "description": "Live query implementation for GraphQL",
-  "scripts": {},
+  "scripts": {
+    "build": "tsc"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ostrebler/graphql-live.git"
@@ -22,5 +24,8 @@
   "bugs": {
     "url": "https://github.com/ostrebler/graphql-live/issues"
   },
-  "homepage": "https://github.com/ostrebler/graphql-live#readme"
+  "homepage": "https://github.com/ostrebler/graphql-live#readme",
+  "devDependencies": {
+    "typescript": "^4.1.5"
+  }
 }
