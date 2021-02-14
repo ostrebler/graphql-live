@@ -7,7 +7,6 @@
     "module": "esnext",
     "moduleResolution": "node",
     "lib": ["esnext"],
-    "importHelpers": true,
     "sourceMap": true,
     "declaration": true,
     "skipLibCheck": true,
