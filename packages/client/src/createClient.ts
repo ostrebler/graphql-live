@@ -1,3 +1,4 @@
+import { ExecutionResult } from "graphql";
 import { io, ManagerOptions, SocketOptions } from "socket.io-client";
 
 export type ClientOptions = {
@@ -6,24 +7,36 @@ export type ClientOptions = {
   socketOptions?: Partial<ManagerOptions & SocketOptions>;
 };
 
-export type Operation = {
-  operation: string;
-  operationName?: string | null;
-  variables?: { [key: string]: any };
+export type ObserverRecord = {
+  observer: ResultObserver;
+  execute(): void;
 };
 
-export type ObserverLike<TOperationResult> = {
-  next(value: TOperationResult): void;
+export type ResultObserver = {
+  next(value: ExecutionResult): void;
   error(error: any): void;
   complete(): void;
 };
 
-export type OperationRecord<TOperationResult> = {
-  observer: ObserverLike<TOperationResult>;
-  execute(): void;
+export type OperationPayload = {
+  id: number;
+  context: any;
+  operation: Operation;
 };
 
-export function createClient<TOperationResult = unknown>({
+export type ResultPayload = {
+  id: number;
+  isFinal?: boolean;
+  result: ExecutionResult;
+};
+
+export type Operation = {
+  operation: string;
+  operationName?: string | null;
+  variables?: Record<string, any>;
+};
+
+export function createClient({
   url,
   context,
   socketOptions
@@ -31,11 +44,7 @@ export function createClient<TOperationResult = unknown>({
   const socket = url ? io(url, socketOptions) : io(socketOptions);
   let isOffline = false;
   let currentId = 0;
-  const operations = new Map<number, OperationRecord<TOperationResult>>();
-
-  const onDisconnect = () => {
-    isOffline = true;
-  };
+  const operations = new Map<number, ObserverRecord>();
 
   const onConnect = () => {
     if (isOffline) {
@@ -44,7 +53,11 @@ export function createClient<TOperationResult = unknown>({
     }
   };
 
-  const onOperationResult = ({ id, isFinal, ...result }: any) => {
+  const onDisconnect = () => {
+    isOffline = true;
+  };
+
+  const onOperationResult = ({ id, isFinal, result }: ResultPayload) => {
     const record = operations.get(id);
     if (!record) return;
     record.observer.next(result);
@@ -64,24 +77,21 @@ export function createClient<TOperationResult = unknown>({
     socket.off("graphql:result", onOperationResult);
   };
 
-  const execute = (
-    observer: ObserverLike<TOperationResult>,
-    operation: Operation
-  ) => {
+  const execute = (operation: Operation, observer: ResultObserver) => {
     const id = currentId++;
     const record = {
       observer,
       async execute() {
-        const ctx = await context?.(operation);
-        socket.emit("graphql:operation", {
+        const payload: OperationPayload = {
           id,
-          context: ctx,
-          ...operation
-        });
+          context: await context?.(operation),
+          operation
+        };
+        socket.emit("graphql:operation", payload);
       }
     };
     operations.set(id, record);
-    record.execute();
+    void record.execute();
     return () => {
       socket.emit("graphql:unsubscribe", { id });
       operations.delete(id);
