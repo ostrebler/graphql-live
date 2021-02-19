@@ -1,7 +1,7 @@
 {
-  "name": "graphql-live-client",
+  "name": "@graphql-live/client",
   "version": "0.0.1",
-  "description": "The client part of the graphql-live package",
+  "description": "The client part of the GraphQLive package",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "scripts": {
@@ -36,5 +36,8 @@
   "dependencies": {
     "graphql": "^15.5.0",
     "socket.io-client": "^3.1.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

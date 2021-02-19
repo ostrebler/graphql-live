@@ -7,7 +7,7 @@ export type ClientOptions = {
   socketOptions?: Partial<ManagerOptions & SocketOptions>;
 };
 
-export type ObserverRecord = {
+export type OperationRecord = {
   observer: ResultObserver;
   execute(): void;
 };
@@ -44,7 +44,7 @@ export function createClient({
   const socket = url ? io(url, socketOptions) : io(socketOptions);
   let isOffline = false;
   let currentId = 0;
-  const operations = new Map<number, ObserverRecord>();
+  const operations = new Map<number, OperationRecord>();
 
   const onConnect = () => {
     if (isOffline) {

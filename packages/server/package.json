@@ -1,11 +1,12 @@
 {
   "name": "@graphql-live/server",
   "version": "0.0.1",
-  "description": "The server part of the graphql-live package",
+  "description": "The server part of the GraphQLive package",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "yarn build"
   },
   "repository": {
     "type": "git",
@@ -30,5 +31,12 @@
   "homepage": "https://github.com/ostrebler/graphql-live#readme",
   "devDependencies": {
     "typescript": "^4.1.5"
+  },
+  "dependencies": {
+    "graphql": "^15.5.0",
+    "socket.io": "^3.1.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
