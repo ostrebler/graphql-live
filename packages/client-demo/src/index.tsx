@@ -1,17 +1,26 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
+import React from "react";
+import ReactDOM from "react-dom";
+import { createClient, dedupExchange, Provider } from "urql";
+import { cacheExchange } from "@urql/exchange-graphcache";
+import { liveExchange } from "@graphql-live/client";
+import App from "./App";
+
+const client = createClient({
+  url: "noop",
+  exchanges: [
+    dedupExchange,
+    cacheExchange(),
+    liveExchange({
+      url: "http://localhost:8080"
+    })
+  ]
+});
 
 ReactDOM.render(
   <React.StrictMode>
-    <App />
+    <Provider value={client}>
+      <App />
+    </Provider>
   </React.StrictMode>,
-  document.getElementById('root')
+  document.getElementById("root")
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
