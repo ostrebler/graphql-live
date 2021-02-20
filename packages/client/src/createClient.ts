@@ -20,14 +20,14 @@ export type ResultObserver = {
 
 export type OperationPayload = {
   id: number;
-  context: any;
+  context?: any;
   operation: Operation;
 };
 
 export type ResultPayload = {
   id: number;
-  isFinal?: boolean;
   result: ExecutionResult;
+  isFinal?: boolean;
 };
 
 export type Operation = {
@@ -57,7 +57,7 @@ export function createClient({
     isOffline = true;
   };
 
-  const onOperationResult = ({ id, isFinal, result }: ResultPayload) => {
+  const onOperationResult = ({ id, result, isFinal }: ResultPayload) => {
     const record = operations.get(id);
     if (!record) return;
     record.observer.next(result);
@@ -93,7 +93,7 @@ export function createClient({
     operations.set(id, record);
     void record.execute();
     return () => {
-      socket.emit("graphql:unsubscribe", { id });
+      socket.emit("graphql:unsubscribe", id);
       operations.delete(id);
       observer.complete();
     };

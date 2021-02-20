@@ -11,7 +11,10 @@ const client = createClient({
     dedupExchange,
     cacheExchange(),
     liveExchange({
-      url: "http://localhost:8080"
+      url: "http://localhost:8080",
+      context() {
+        return "mytoken";
+      }
     })
   ]
 });
