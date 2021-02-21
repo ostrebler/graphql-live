@@ -35,14 +35,14 @@ export type InvalidateCallback = {
   (
     rootField: string,
     partialArguments?: Record<string, any>,
-    contextPredicate?: (lastContext: any) => boolean
+    contextPredicate?: (context: any) => boolean
   ): void;
 };
 
 export type OperationRecord = {
   id: number;
   rootFields: Array<RootFieldRecord>;
-  lastContext: any;
+  context: any;
   execute(): void;
 };
 
@@ -97,7 +97,7 @@ export function createServer({
     for (const records of operations.values())
       for (const record of records) {
         const match =
-          contextPredicate(record.lastContext) &&
+          contextPredicate(record.context) &&
           record.rootFields.find(
             field =>
               rootField === field.name &&
@@ -151,9 +151,9 @@ export function createServer({
       const record: OperationRecord = {
         id,
         rootFields,
-        lastContext: undefined,
+        context: undefined,
         async execute() {
-          record.lastContext = !context
+          record.context = !context
             ? { invalidate }
             : await context({
                 socket,
@@ -164,11 +164,10 @@ export function createServer({
           const result = await execute({
             schema: finalSchema,
             document,
-            contextValue: record.lastContext,
+            contextValue: record.context,
             variableValues: operation.variables,
             operationName: operation.operationName
           });
-          console.log("success", result);
           const payload: ResultPayload = {
             id,
             result,
