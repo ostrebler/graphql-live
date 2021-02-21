@@ -1,5 +1,5 @@
-import { createServer } from ".";
 import { IResolvers } from "@graphql-tools/utils/interfaces";
+import { createServer } from ".";
 
 const todos = [
   {
@@ -42,20 +42,21 @@ const resolvers: IResolvers = {
     }
   },
   Mutation: {
-    addTodo(_, { content, author }) {
+    addTodo(_, { content, author }, { invalidate }) {
       todos.push({
         id: Math.random().toString(),
         content,
         author
       });
+      invalidate("todos", { id: "1" });
       return true;
     }
   }
 };
 
 const server = createServer({
-  async context({ context }) {
-    return context;
+  async context({ context, invalidate }) {
+    return { context, invalidate };
   },
   schema: {
     typeDefs,

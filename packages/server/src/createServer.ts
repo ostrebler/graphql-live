@@ -4,9 +4,18 @@ import {
   ServerOptions as SocketServerOptions,
   Socket
 } from "socket.io";
-import { ExecutionResult, graphql, GraphQLSchema } from "graphql";
+import {
+  DocumentNode,
+  execute,
+  ExecutionResult,
+  getOperationAST,
+  GraphQLError,
+  GraphQLSchema,
+  parse
+} from "graphql";
 import { makeExecutableSchema } from "graphql-tools";
 import { IExecutableSchemaDefinition } from "@graphql-tools/schema/types";
+import { getRootFieldRecords, isContained, isLiveOperation } from ".";
 
 export type ServerOptions = {
   server?: HttpServer;
@@ -16,14 +25,30 @@ export type ServerOptions = {
 };
 
 export type ContextPayload = {
+  socket: Socket;
   operation: Operation;
   context?: any;
-  socket: Socket;
+  invalidate: InvalidateCallback;
+};
+
+export type InvalidateCallback = {
+  (
+    rootField: string,
+    partialArguments?: Record<string, any>,
+    contextPredicate?: (lastContext: any) => boolean
+  ): void;
 };
 
 export type OperationRecord = {
   id: number;
+  rootFields: Array<RootFieldRecord>;
+  lastContext: any;
   execute(): void;
+};
+
+export type RootFieldRecord = {
+  name: string;
+  arguments: Record<string, any>;
 };
 
 export type OperationPayload = {
@@ -64,34 +89,86 @@ export function createServer({
   const finalSchema =
     schema instanceof GraphQLSchema ? schema : makeExecutableSchema(schema);
 
+  const invalidate: InvalidateCallback = (
+    rootField,
+    partialArguments = {},
+    contextPredicate = () => true
+  ) => {
+    for (const records of operations.values())
+      for (const record of records) {
+        const match =
+          contextPredicate(record.lastContext) &&
+          record.rootFields.find(
+            field =>
+              rootField === field.name &&
+              isContained(partialArguments, field.arguments)
+          );
+        if (match) record.execute();
+      }
+  };
+
   io.on("connection", (socket: Socket) => {
-    console.log("Got new socket", socket.id);
     operations.set(socket, []);
 
     const onDisconnect = () => {
       operations.delete(socket);
     };
 
-    const onOperation = ({
+    const onOperation = async ({
       id,
       context: clientContext,
       operation
     }: OperationPayload) => {
-      const isLive = true; // Todo
-      const record = {
+      let document: DocumentNode;
+
+      const emitError = (error: GraphQLError) => {
+        const payload: ResultPayload = {
+          id,
+          result: { errors: [error] },
+          isFinal: true
+        };
+        socket.emit("graphql:result", payload);
+      };
+
+      try {
+        document = parse(operation.operation);
+      } catch (error) {
+        emitError(error);
+        return;
+      }
+
+      const mainOperation = getOperationAST(document, operation.operationName);
+      if (!mainOperation) {
+        emitError(new GraphQLError("No operation sent."));
+        return;
+      }
+
+      const isLive = isLiveOperation(mainOperation);
+      const rootFields = isLive
+        ? getRootFieldRecords(mainOperation, operation.variables)
+        : [];
+
+      const record: OperationRecord = {
         id,
+        rootFields,
+        lastContext: undefined,
         async execute() {
-          const result = await graphql({
+          record.lastContext = !context
+            ? { invalidate }
+            : await context({
+                socket,
+                operation,
+                context: clientContext,
+                invalidate
+              });
+          const result = await execute({
             schema: finalSchema,
-            source: operation.operation,
-            contextValue: await context?.({
-              operation,
-              context: clientContext,
-              socket
-            }),
+            document,
+            contextValue: record.lastContext,
             variableValues: operation.variables,
             operationName: operation.operationName
           });
+          console.log("success", result);
           const payload: ResultPayload = {
             id,
             result,
@@ -100,8 +177,9 @@ export function createServer({
           socket.emit("graphql:result", payload);
         }
       };
+
+      await record.execute();
       if (isLive) operations.get(socket)?.push(record);
-      void record.execute();
     };
 
     const onUnsubscribe = (id: number) => {

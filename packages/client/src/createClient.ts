@@ -79,7 +79,7 @@ export function createClient({
 
   const execute = (operation: Operation, observer: ResultObserver) => {
     const id = currentId++;
-    const record = {
+    const record: OperationRecord = {
       observer,
       async execute() {
         const payload: OperationPayload = {
@@ -100,6 +100,7 @@ export function createClient({
   };
 
   return {
+    socket,
     execute,
     destroy
   };

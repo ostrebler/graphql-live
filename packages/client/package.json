@@ -1,6 +1,6 @@
 {
   "name": "@graphql-live/client",
-  "version": "0.0.5",
+  "version": "0.1.0",
   "description": "The client part of the GraphQLive package",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",

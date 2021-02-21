@@ -6,7 +6,7 @@ import { liveExchange } from "@graphql-live/client";
 import App from "./App";
 
 const client = createClient({
-  url: "noop",
+  url: "http://localhost:8080",
   exchanges: [
     dedupExchange,
     cacheExchange(),
@@ -20,10 +20,8 @@ const client = createClient({
 });
 
 ReactDOM.render(
-  <React.StrictMode>
-    <Provider value={client}>
-      <App />
-    </Provider>
-  </React.StrictMode>,
+  <Provider value={client}>
+    <App />
+  </Provider>,
   document.getElementById("root")
 );

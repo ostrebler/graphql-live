@@ -1170,10 +1170,10 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
-"@graphql-live/client@^0.0.5":
-  version "0.0.5"
-  resolved "https://registry.yarnpkg.com/@graphql-live/client/-/client-0.0.5.tgz#ac36185fddafd767ee303fb8beea01da81289c3e"
-  integrity sha512-M6C7QHC0MCOtrPb9qREiXYuoO1qGeKzd4iSU9q7/GawYdjvsttZUiwLXdlRdDR7l/vX5CPUrjg6dTLUFKohD1Q==
+"@graphql-live/client@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@graphql-live/client/-/client-0.0.6.tgz#4e340ce70e2d879472f2e5dc4d86c5037d909791"
+  integrity sha512-8oraRUzHT3j1nM4ubEdQHtgwAhKpOMzEgI9nY9pdWYTYEwM7nhTlWCIdSXX0xm7hbiUxXQu2x0kWX+98p0uiTA==
   dependencies:
     graphql "^15.5.0"
     socket.io-client "^3.1.1"
