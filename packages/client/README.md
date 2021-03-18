@@ -32,7 +32,7 @@ This establishes a socket connection with the server at the given `url`. You can
 ```javascript
 const operation = {
   operation: `
-    query($id: ID!) {
+    query($id: ID!) @live {
       getUser(id: $id) {
         id
         name
@@ -66,6 +66,8 @@ const subscription = observable.subscribe({
 // ...Finally, when you're no more interested in updates :
 subscription.unsubscribe();
 ```
+
+(Take note of the `@live` directive)
 
 ### As an add-on
 
