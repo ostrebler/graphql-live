@@ -195,8 +195,6 @@ export function createServer({
               patch: compare(previousResult, record.latestResult),
               isFinal: !isLive
             };
-            isLive &&
-              console.log("Patching ", JSON.stringify(payload.patch, null, 2));
             socket.emit("graphql:result", payload);
           } catch (error) {
             // If an error was thrown, it's either in context calculation or graphql execution. In either
