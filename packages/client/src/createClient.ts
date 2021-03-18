@@ -1,52 +1,19 @@
-import { io, ManagerOptions, SocketOptions } from "socket.io-client";
-import { ExecutionResult } from "graphql";
+import { io } from "socket.io-client";
+import { applyPatch, deepClone } from "fast-json-patch";
 import {
-  applyPatch,
-  deepClone,
-  Operation as PatchOperation
-} from "fast-json-patch";
+  ClientOptions,
+  Operation,
+  OperationPayload,
+  OperationRecord,
+  ResultObserver,
+  ResultPayload
+} from ".";
 
-export type ClientOptions = {
-  url?: string;
-  context?(operation: Operation): any;
-  socketOptions?: Partial<ManagerOptions & SocketOptions>;
-};
-
-export type OperationRecord = {
-  observer: ResultObserver;
-  latestResult: ExecutionResult;
-  execute(): void;
-};
-
-export type ResultObserver = {
-  next(value: ExecutionResult): void;
-  error(error: any): void;
-  complete(): void;
-};
-
-export type OperationPayload = {
-  id: number;
-  context?: any;
-  operation: Operation;
-};
-
-export type ResultPayload = {
-  id: number;
-  patch: Array<PatchOperation>;
-  isFinal?: boolean;
-};
-
-export type Operation = {
-  operation: string;
-  operationName?: string | null;
-  variables?: Record<string, any>;
-};
-
-export function createClient({
+export function createClient<TContext = any>({
   url,
-  context,
-  socketOptions
-}: ClientOptions = {}) {
+  socketOptions,
+  context = () => undefined as any
+}: ClientOptions<TContext> = {}) {
   const socket = url ? io(url, socketOptions) : io(socketOptions);
   let disconnected = false;
   let currentId = 0;
@@ -75,10 +42,10 @@ export function createClient({
       deepClone(record.latestResult),
       patch
     ).newDocument;
-    record.observer.next(record.latestResult);
+    record.observer.next?.(record.latestResult);
     if (isFinal) {
       operations.delete(id);
-      record.observer.complete();
+      record.observer.complete?.();
     }
   };
 
@@ -107,9 +74,9 @@ export function createClient({
         // Re-execution can be caused by the server going down or the connection being lost temporarily.
         // In all those cases, state will be set to {} on the server, so it needs to be in sync here :
         record.latestResult = {};
-        const payload: OperationPayload = {
+        const payload: OperationPayload<TContext> = {
           id,
-          context: await context?.(operation),
+          context: await context({ socket, operation }),
           operation
         };
         socket.emit("graphql:operation", payload);
@@ -120,7 +87,7 @@ export function createClient({
     return () => {
       socket.emit("graphql:unsubscribe", id);
       operations.delete(id);
-      observer.complete();
+      observer.complete?.();
     };
   };
 

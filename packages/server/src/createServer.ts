@@ -1,9 +1,4 @@
-import { Server as HttpServer } from "http";
-import {
-  Server as SocketServer,
-  ServerOptions as SocketServerOptions,
-  Socket
-} from "socket.io";
+import { Server as SocketServer, Socket } from "socket.io";
 import {
   DocumentNode,
   execute,
@@ -15,66 +10,24 @@ import {
   validate
 } from "graphql";
 import { makeExecutableSchema } from "graphql-tools";
-import { IExecutableSchemaDefinition } from "@graphql-tools/schema/types";
-import { compare, Operation as PatchOperation } from "fast-json-patch";
-import { getFieldRecords, isLiveOperation, isPartialMatch } from ".";
+import { compare } from "fast-json-patch";
+import {
+  getFieldRecords,
+  InvalidateCallback,
+  isLiveOperation,
+  isPartialMatch,
+  OperationPayload,
+  OperationRecord,
+  ResultPayload,
+  ServerOptions
+} from ".";
 
-export type ServerOptions = {
-  server?: HttpServer;
-  socketOptions?: Partial<SocketServerOptions>;
-  schema: GraphQLSchema | IExecutableSchemaDefinition;
-  context?(payload: ContextPayload): any;
-};
-
-export type ContextPayload = {
-  socket: Socket;
-  operation: Operation;
-  clientContext?: any;
-  invalidate: InvalidateCallback;
-};
-
-export type InvalidateCallback<TContext = any, TData = Record<string, any>> = {
-  (
-    queryField: string,
-    partialArguments?: Record<string, any>,
-    predicate?: (
-      latestContext: TContext,
-      latestResult: ExecutionResult<TData>
-    ) => boolean
-  ): void;
-};
-
-export type OperationRecord = {
-  fields: Map<string, Record<string, any>>;
-  latestContext: any;
-  latestResult: ExecutionResult;
-  execute(): void;
-};
-
-export type OperationPayload = {
-  id: number;
-  context?: any;
-  operation: Operation;
-};
-
-export type ResultPayload = {
-  id: number;
-  patch: Array<PatchOperation>;
-  isFinal?: boolean;
-};
-
-export type Operation = {
-  operation: string;
-  operationName?: string | null;
-  variables?: Record<string, any>;
-};
-
-export function createServer({
+export function createServer<TContext = any>({
   server,
   socketOptions,
   schema,
-  context
-}: ServerOptions) {
+  context = ({ invalidate }) => ({ invalidate } as any)
+}: ServerOptions<TContext>) {
   socketOptions = {
     cors: { origin: "*" },
     ...socketOptions
@@ -85,7 +38,10 @@ export function createServer({
     : new SocketServer(socketOptions);
 
   // This stores all ongoing live queries from all the clients :
-  const liveOperations = new Map<Socket, Map<number, OperationRecord>>();
+  const liveOperations = new Map<
+    Socket,
+    Map<number, OperationRecord<TContext>>
+  >();
 
   const finalSchema =
     schema instanceof GraphQLSchema ? schema : makeExecutableSchema(schema);
@@ -93,7 +49,7 @@ export function createServer({
   // This function is used to invalidate live queries, thus triggering re-execution and live updates.
   // It will typically be passed as context to the resolvers. "predicate" can be used as an additional filter
   // if the developer wants to update live queries based on context values and/or latest known results :
-  const invalidate: InvalidateCallback = (
+  const invalidate: InvalidateCallback<TContext> = (
     queryField,
     partialArguments = {},
     predicate = () => true
@@ -111,7 +67,7 @@ export function createServer({
   };
 
   const onConnection = (socket: Socket) => {
-    const liveOps = new Map<number, OperationRecord>();
+    const liveOps = new Map<number, OperationRecord<TContext>>();
     liveOperations.set(socket, liveOps);
 
     const onDisconnect = () => {
@@ -163,9 +119,10 @@ export function createServer({
       // A record is created (and added to the live query store if there's a live query). The record keeps
       // track of the live query fields, the latest calculated context (it's recalculated on re-execution),
       // the latest known result and a function to execute the operation (might be used after invalidation) :
-      const record: OperationRecord = {
+      const record: OperationRecord<TContext> = {
         fields,
-        latestContext: undefined,
+        // record.latestContext is technically never used with this initial value, so it's safe :
+        latestContext: undefined as never,
         latestResult: {},
         async execute() {
           // On each execution, save the latest known result (empty object if it's the first time) :
@@ -173,14 +130,12 @@ export function createServer({
           try {
             // The context might change between re-execution and these changes might affect results, so it's
             // recalculated (and saved) here :
-            record.latestContext = !context
-              ? { invalidate }
-              : await context({
-                  socket,
-                  operation,
-                  clientContext,
-                  invalidate
-                });
+            record.latestContext = await context({
+              socket,
+              operation,
+              clientContext,
+              invalidate
+            });
             // Execute the GraphQL :
             record.latestResult = await execute({
               schema: finalSchema,
@@ -214,6 +169,9 @@ export function createServer({
       };
 
       if (isLive) liveOps.set(id, record);
+      // Prevents clients from messing with the server's state (example : sending one live query, then
+      // another non-live operation with the same id) :
+      else liveOps.delete(id);
       record.execute();
     };
 

@@ -1,7 +1,7 @@
 import { subscriptionExchange } from "urql";
 import { ClientOptions, createClient } from ".";
 
-export function liveExchange(options: ClientOptions) {
+export function liveExchange<TContext = any>(options: ClientOptions<TContext>) {
   const { execute } = createClient(options);
   return subscriptionExchange({
     enableAllOperations: true,

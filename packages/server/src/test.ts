@@ -58,12 +58,6 @@ const resolvers: IResolvers = {
       invalidate("todos", { id: "1" });
       return true;
     },
-    editTodo(_, { id, content }) {
-      const todo = todos.find(todo => todo.id === id);
-      if (!todo) throw new Error("No such todo found");
-      todo.content = content;
-      return todo;
-    },
     removeTodo(_, { id }, { invalidate }) {
       todos = todos.filter(todo => todo.id !== id);
       invalidate("todos", { id: "1" });
