@@ -1,7 +1,7 @@
 import { IResolvers } from "@graphql-tools/utils/interfaces";
 import { createServer } from ".";
 
-const todos = [
+let todos = [
   {
     id: "A",
     content: "My demo todo from the server",
@@ -20,6 +20,8 @@ const todos = [
 ];
 
 const typeDefs = `
+  directive @live on QUERY
+
   type Todo {
     id: ID!
     content: String!
@@ -32,6 +34,8 @@ const typeDefs = `
   
   type Mutation {
     addTodo(content: String!, author: String!): Boolean!
+    editTodo(id: ID!, content: String!): Todo!
+    removeTodo(id: ID!): Boolean!
   }
 `;
 
@@ -43,11 +47,25 @@ const resolvers: IResolvers = {
   },
   Mutation: {
     addTodo(_, { content, author }, { invalidate }) {
-      todos.push({
-        id: Math.random().toString(),
-        content,
-        author
-      });
+      todos = [
+        ...todos,
+        {
+          id: Math.random().toString(),
+          content,
+          author
+        }
+      ];
+      invalidate("todos", { id: "1" });
+      return true;
+    },
+    editTodo(_, { id, content }) {
+      const todo = todos.find(todo => todo.id === id);
+      if (!todo) throw new Error("No such todo found");
+      todo.content = content;
+      return todo;
+    },
+    removeTodo(_, { id }, { invalidate }) {
+      todos = todos.filter(todo => todo.id !== id);
       invalidate("todos", { id: "1" });
       return true;
     }
@@ -55,8 +73,8 @@ const resolvers: IResolvers = {
 };
 
 const server = createServer({
-  async context({ context, invalidate }) {
-    return { context, invalidate };
+  async context({ clientContext, invalidate }) {
+    return { clientContext, invalidate };
   },
   schema: {
     typeDefs,
@@ -64,4 +82,4 @@ const server = createServer({
   }
 });
 
-server.listen(8080);
+server.io.listen(8080);

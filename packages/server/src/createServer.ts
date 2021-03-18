@@ -11,11 +11,13 @@ import {
   getOperationAST,
   GraphQLError,
   GraphQLSchema,
-  parse
+  parse,
+  validate
 } from "graphql";
 import { makeExecutableSchema } from "graphql-tools";
 import { IExecutableSchemaDefinition } from "@graphql-tools/schema/types";
-import { getRootFieldRecords, isContained, isLiveOperation } from ".";
+import { compare, Operation as PatchOperation } from "fast-json-patch";
+import { getFieldRecords, isLiveOperation, isPartialMatch } from ".";
 
 export type ServerOptions = {
   server?: HttpServer;
@@ -27,28 +29,26 @@ export type ServerOptions = {
 export type ContextPayload = {
   socket: Socket;
   operation: Operation;
-  context?: any;
+  clientContext?: any;
   invalidate: InvalidateCallback;
 };
 
-export type InvalidateCallback = {
+export type InvalidateCallback<TContext = any, TData = Record<string, any>> = {
   (
-    rootField: string,
+    queryField: string,
     partialArguments?: Record<string, any>,
-    contextPredicate?: (context: any) => boolean
+    predicate?: (
+      latestContext: TContext,
+      latestResult: ExecutionResult<TData>
+    ) => boolean
   ): void;
 };
 
 export type OperationRecord = {
-  id: number;
-  rootFields: Array<RootFieldRecord>;
-  context: any;
+  fields: Map<string, Record<string, any>>;
+  latestContext: any;
+  latestResult: ExecutionResult;
   execute(): void;
-};
-
-export type RootFieldRecord = {
-  name: string;
-  arguments: Record<string, any>;
 };
 
 export type OperationPayload = {
@@ -59,7 +59,7 @@ export type OperationPayload = {
 
 export type ResultPayload = {
   id: number;
-  result: ExecutionResult;
+  patch: Array<PatchOperation>;
   isFinal?: boolean;
 };
 
@@ -84,34 +84,38 @@ export function createServer({
     ? new SocketServer(server, socketOptions)
     : new SocketServer(socketOptions);
 
-  const operations = new Map<Socket, Array<OperationRecord>>();
+  // This stores all ongoing live queries from all the clients :
+  const liveOperations = new Map<Socket, Map<number, OperationRecord>>();
 
   const finalSchema =
     schema instanceof GraphQLSchema ? schema : makeExecutableSchema(schema);
 
+  // This function is used to invalidate live queries, thus triggering re-execution and live updates.
+  // It will typically be passed as context to the resolvers. "predicate" can be used as an additional filter
+  // if the developer wants to update live queries based on context values and/or latest known results :
   const invalidate: InvalidateCallback = (
-    rootField,
+    queryField,
     partialArguments = {},
-    contextPredicate = () => true
+    predicate = () => true
   ) => {
-    for (const records of operations.values())
-      for (const record of records) {
-        const match =
-          contextPredicate(record.context) &&
-          record.rootFields.find(
-            field =>
-              rootField === field.name &&
-              isContained(partialArguments, field.arguments)
-          );
-        if (match) record.execute();
+    for (const liveOps of liveOperations.values())
+      for (const record of liveOps.values()) {
+        const args = record.fields.get(queryField);
+        if (
+          args &&
+          isPartialMatch(partialArguments, args) &&
+          predicate(record.latestContext, record.latestResult)
+        )
+          record.execute();
       }
   };
 
-  io.on("connection", (socket: Socket) => {
-    operations.set(socket, []);
+  const onConnection = (socket: Socket) => {
+    const liveOps = new Map<number, OperationRecord>();
+    liveOperations.set(socket, liveOps);
 
     const onDisconnect = () => {
-      operations.delete(socket);
+      liveOperations.delete(socket);
     };
 
     const onOperation = async ({
@@ -119,81 +123,122 @@ export function createServer({
       context: clientContext,
       operation
     }: OperationPayload) => {
-      let document: DocumentNode;
-
-      const emitError = (error: GraphQLError) => {
+      // This callback is used to emit a final error and to end the live subscription (if there was any) :
+      const emitFinalError = (
+        errors: ReadonlyArray<GraphQLError>,
+        previousResult: ExecutionResult = {}
+      ) => {
         const payload: ResultPayload = {
           id,
-          result: { errors: [error] },
+          patch: compare(previousResult, { errors }),
           isFinal: true
         };
         socket.emit("graphql:result", payload);
+        liveOps.delete(id);
       };
 
+      let document: DocumentNode;
       try {
+        // The incoming operation is first parsed... :
         document = parse(operation.operation);
       } catch (error) {
-        emitError(error);
-        return;
+        return emitFinalError([error]);
       }
 
+      // ...then validated against the schema :
+      const validationErrors = validate(finalSchema, document);
+      if (validationErrors.length) return emitFinalError(validationErrors);
+
+      // The main operation is retrieved from the document :
       const mainOperation = getOperationAST(document, operation.operationName);
-      if (!mainOperation) {
-        emitError(new GraphQLError("No operation sent."));
-        return;
-      }
+      if (!mainOperation)
+        return emitFinalError([new GraphQLError("No operation sent")]);
 
+      // The query fields and arguments are retrieved if the main operation is a live query :
       const isLive = isLiveOperation(mainOperation);
-      const rootFields = isLive
-        ? getRootFieldRecords(mainOperation, operation.variables)
-        : [];
+      const fields = isLive
+        ? getFieldRecords(mainOperation, operation.variables)
+        : new Map<string, Record<string, any>>();
 
+      // A record is created (and added to the live query store if there's a live query). The record keeps
+      // track of the live query fields, the latest calculated context (it's recalculated on re-execution),
+      // the latest known result and a function to execute the operation (might be used after invalidation) :
       const record: OperationRecord = {
-        id,
-        rootFields,
-        context: undefined,
+        fields,
+        latestContext: undefined,
+        latestResult: {},
         async execute() {
-          record.context = !context
-            ? { invalidate }
-            : await context({
-                socket,
-                operation,
-                context: clientContext,
-                invalidate
-              });
-          const result = await execute({
-            schema: finalSchema,
-            document,
-            contextValue: record.context,
-            variableValues: operation.variables,
-            operationName: operation.operationName
-          });
-          const payload: ResultPayload = {
-            id,
-            result,
-            isFinal: !isLive
-          };
-          socket.emit("graphql:result", payload);
+          // On each execution, save the latest known result (empty object if it's the first time) :
+          const previousResult = record.latestResult;
+          try {
+            // The context might change between re-execution and these changes might affect results, so it's
+            // recalculated (and saved) here :
+            record.latestContext = !context
+              ? { invalidate }
+              : await context({
+                  socket,
+                  operation,
+                  clientContext,
+                  invalidate
+                });
+            // Execute the GraphQL :
+            record.latestResult = await execute({
+              schema: finalSchema,
+              document,
+              contextValue: record.latestContext,
+              variableValues: operation.variables,
+              operationName: operation.operationName
+            });
+            // A patch is finally calculated between the old and the new result and sent to the client :
+            const payload: ResultPayload = {
+              id,
+              patch: compare(previousResult, record.latestResult),
+              isFinal: !isLive
+            };
+            isLive &&
+              console.log("Patching ", JSON.stringify(payload.patch, null, 2));
+            socket.emit("graphql:result", payload);
+          } catch (error) {
+            // If an error was thrown, it's either in context calculation or graphql execution. In either
+            // case, it means fatal error with no partial data, thus live subscription is canceled :
+            emitFinalError(
+              [
+                error instanceof GraphQLError
+                  ? error
+                  : error instanceof Error
+                  ? new GraphQLError(error.message)
+                  : new GraphQLError("Unknown error")
+              ],
+              previousResult
+            );
+          }
         }
       };
 
-      await record.execute();
-      if (isLive) operations.get(socket)?.push(record);
+      if (isLive) liveOps.set(id, record);
+      record.execute();
     };
 
     const onUnsubscribe = (id: number) => {
-      const records = operations.get(socket);
-      if (!records) return;
-      operations.set(
-        socket,
-        records.filter(record => record.id !== id)
-      );
+      // When the client is no more interested in live updates for operation {id} :
+      liveOps.delete(id);
     };
 
     socket.on("disconnect", onDisconnect);
     socket.on("graphql:operation", onOperation);
     socket.on("graphql:unsubscribe", onUnsubscribe);
-  });
+  };
 
-  return io;
+  io.on("connection", onConnection);
+
+  const destroy = () => {
+    io.off("connection", onConnection);
+    io.close();
+    liveOperations.clear();
+  };
+
+  return {
+    io,
+    destroy
+  };
 }

@@ -1,15 +1,17 @@
 import { OperationDefinitionNode, valueFromASTUntyped } from "graphql";
-import { RootFieldRecord } from ".";
 
-export function isContained(
-  contained: Record<string, any>,
-  container: Record<string, any>
+// This function checks if "partialArguments" is contained in "args" (taking into
+// consideration null/undefined equivalency) :
+export function isPartialMatch(
+  partialArguments: Record<string, any>,
+  args: Record<string, any>
 ) {
-  return Object.entries(contained).every(
-    ([key, value]) => (value ?? null) === (container[key] ?? null)
+  return Object.entries(partialArguments).every(
+    ([key, value]) => (value ?? null) === (args[key] ?? null)
   );
 }
 
+// Checks if an operation definition is a live query :
 export function isLiveOperation(operation: OperationDefinitionNode) {
   return Boolean(
     operation.operation === "query" &&
@@ -17,20 +19,18 @@ export function isLiveOperation(operation: OperationDefinitionNode) {
   );
 }
 
-export function getRootFieldRecords(
+// This function extracts field names and arguments given an operation and a set of variables :
+export function getFieldRecords(
   operation: OperationDefinitionNode,
   variables?: Record<string, any>
 ) {
-  const fields: Array<RootFieldRecord> = [];
+  const fields = new Map<string, Record<string, any>>();
   for (const selection of operation.selectionSet.selections) {
     if (selection.kind === "Field") {
-      const args: Record<string, any> = {};
+      const args: Record<string, any> = Object.create(null);
       for (const arg of selection.arguments ?? [])
         args[arg.name.value] = valueFromASTUntyped(arg.value, variables);
-      fields.push({
-        name: selection.name.value,
-        arguments: args
-      });
+      fields.set(selection.name.value, args);
     }
   }
   return fields;

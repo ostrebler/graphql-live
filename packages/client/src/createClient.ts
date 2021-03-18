@@ -1,5 +1,10 @@
-import { ExecutionResult } from "graphql";
 import { io, ManagerOptions, SocketOptions } from "socket.io-client";
+import { ExecutionResult } from "graphql";
+import {
+  applyPatch,
+  deepClone,
+  Operation as PatchOperation
+} from "fast-json-patch";
 
 export type ClientOptions = {
   url?: string;
@@ -9,6 +14,7 @@ export type ClientOptions = {
 
 export type OperationRecord = {
   observer: ResultObserver;
+  latestResult: ExecutionResult;
   execute(): void;
 };
 
@@ -26,7 +32,7 @@ export type OperationPayload = {
 
 export type ResultPayload = {
   id: number;
-  result: ExecutionResult;
+  patch: Array<PatchOperation>;
   isFinal?: boolean;
 };
 
@@ -42,25 +48,34 @@ export function createClient({
   socketOptions
 }: ClientOptions = {}) {
   const socket = url ? io(url, socketOptions) : io(socketOptions);
-  let isOffline = false;
+  let disconnected = false;
   let currentId = 0;
+
+  // This stores all ongoing operations waiting for results (possibly result streams) :
   const operations = new Map<number, OperationRecord>();
 
   const onConnect = () => {
-    if (isOffline) {
-      isOffline = false;
+    if (disconnected) {
+      disconnected = false;
+      // If this was a reconnection, re-execute all active operations, to be up-to-date :
       for (const record of operations.values()) record.execute();
     }
   };
 
   const onDisconnect = () => {
-    isOffline = true;
+    disconnected = true;
   };
 
-  const onOperationResult = ({ id, result, isFinal }: ResultPayload) => {
+  const onOperationResult = ({ id, patch, isFinal }: ResultPayload) => {
     const record = operations.get(id);
     if (!record) return;
-    record.observer.next(result);
+    // When a patch is sent by the server, apply it to the latest known result and send
+    // the updated result to the observer :
+    record.latestResult = applyPatch(
+      deepClone(record.latestResult),
+      patch
+    ).newDocument;
+    record.observer.next(record.latestResult);
     if (isFinal) {
       operations.delete(id);
       record.observer.complete();
@@ -75,13 +90,23 @@ export function createClient({
     socket.off("connect", onConnect);
     socket.off("disconnect", onDisconnect);
     socket.off("graphql:result", onOperationResult);
+    socket.disconnect();
   };
 
   const execute = (operation: Operation, observer: ResultObserver) => {
+    // For each new operation, a unique id is created :
     const id = currentId++;
+    // Also, a record is added to the operation store, keeping track of the observer interested
+    // in results, the latest known result, and a function to execute the operation (might be
+    // used for re-executions on reconnections) :
     const record: OperationRecord = {
       observer,
+      latestResult: {},
       async execute() {
+        // The only cases where this function is called is on first execution or on re-execution.
+        // Re-execution can be caused by the server going down or the connection being lost temporarily.
+        // In all those cases, state will be set to {} on the server, so it needs to be in sync here :
+        record.latestResult = {};
         const payload: OperationPayload = {
           id,
           context: await context?.(operation),
@@ -91,7 +116,7 @@ export function createClient({
       }
     };
     operations.set(id, record);
-    void record.execute();
+    record.execute();
     return () => {
       socket.emit("graphql:unsubscribe", id);
       operations.delete(id);
@@ -101,7 +126,7 @@ export function createClient({
 
   return {
     socket,
-    execute,
-    destroy
+    destroy,
+    execute
   };
 }

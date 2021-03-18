@@ -1,6 +1,6 @@
 {
   "name": "@graphql-live/client",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "The client part of the GraphQLive package",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -30,12 +30,14 @@
   },
   "homepage": "https://github.com/ostrebler/graphql-live#readme",
   "devDependencies": {
-    "typescript": "^4.1.5",
+    "@types/node": "^14.14.35",
+    "typescript": "^4.2.3",
     "urql": "^2.0.1"
   },
   "dependencies": {
+    "fast-json-patch": "^3.0.0-1",
     "graphql": "^15.5.0",
-    "socket.io-client": "^3.1.1"
+    "socket.io-client": "^4.0.0"
   },
   "publishConfig": {
     "access": "public"
