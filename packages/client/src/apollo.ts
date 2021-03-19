@@ -11,7 +11,7 @@ import { ClientOptions, createClient } from ".";
 export class LiveLink<TContext = any> extends ApolloLink {
   private client: ReturnType<typeof createClient>;
 
-  constructor(options: ClientOptions<TContext>) {
+  constructor(options: ClientOptions<TContext> = {}) {
     super();
     this.client = createClient(options);
   }

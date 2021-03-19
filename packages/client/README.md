@@ -131,11 +131,9 @@ const client = createClient({
 ### `createClient`
 
 ```typescript
-declare function createClient<TContext = any>({
-  url,
-  socketOptions,
-  context
-}?: ClientOptions<TContext>): {
+declare function createClient<TContext = any>(
+  options?: ClientOptions<TContext>
+): {
   socket: Socket;
   destroy: () => void;
   execute: (operation: Operation, observer: ResultObserver) => () => void;
@@ -148,7 +146,7 @@ When you create a client, what you actually get back is an object containing the
 
 ```typescript
 declare class LiveLink<TContext = any> extends ApolloLink {
-  constructor(options: ClientOptions<TContext>);
+  constructor(options?: ClientOptions<TContext>);
 }
 ```
 
@@ -156,7 +154,7 @@ declare class LiveLink<TContext = any> extends ApolloLink {
 
 ```typescript
 declare function liveExchange<TContext = any>(
-  options: ClientOptions<TContext>
+  options?: ClientOptions<TContext>
 ): Exchange;
 ```
 
