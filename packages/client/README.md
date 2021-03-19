@@ -67,7 +67,7 @@ const subscription = observable.subscribe({
 subscription.unsubscribe();
 ```
 
-(Take note of the `@live` directive)
+_(Take note of the `@live` directive)_
 
 ### As an add-on
 
@@ -108,7 +108,7 @@ Most GraphQL client libraries support add-on systems (Apollo's links, urql's exc
 
 ### Custom context
 
-You can add a custom `context` callback to your client config. It will be called right before an operation is sent to the server and it's return value can be used server-side to generate custom resolver context. This might typically be used to pass auth tokens.
+You can add a custom `context` callback to your client config. It will be called right before an operation is sent to the server and it's return value can be used server-side to generate custom resolver context. This might typically be used to pass **auth tokens**, but really it could be any valid JSON.
 
 ```javascript
 const client = createClient({
