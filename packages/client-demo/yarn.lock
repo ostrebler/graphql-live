@@ -1189,10 +1189,10 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
-"@graphql-live/client@^0.1.6":
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/@graphql-live/client/-/client-0.1.6.tgz#324031f07d1a30a36d71ccae2175df4453c676d8"
-  integrity sha512-tmrIiS6WkzvzaIbB2nh19FES+I3+v/4geJII3/KyUazkUkhEHHgc/SZCPNbL0XLDZuTFFsOOB9Cn/nFMtTOLfw==
+"@graphql-live/client@^0.1.8":
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/@graphql-live/client/-/client-0.1.8.tgz#ec8255f5a0e0d79078338119b0f3a8e0873f8c8a"
+  integrity sha512-+PeXJ+Avmu7uzgHmH0Ao6ybsF+0K0EtHpjdf53WpuBd1mD7VEq0m0RgTLlWWngQbdn9/jyRlGInMEmNOjg4Hbw==
   dependencies:
     fast-json-patch "^3.0.0-1"
     graphql "^15.5.0"

@@ -70,6 +70,9 @@ const server = createServer({
   async context({ clientContext, invalidate }) {
     return { clientContext, invalidate };
   },
+  socketOptions: {
+    path: "/api"
+  },
   schema: {
     typeDefs,
     resolvers

@@ -1,6 +1,10 @@
 # @graphql-live/client
 
+> **⚠ WARNING: Still under development.**
+
 Very tiny library to send **live queries** to a compatible GraphQL server ([`@graphql-live/server`](https://www.npmjs.com/package/@graphql-live/server)) using the `@live` directive and automatically get updates when fresh data is available. Under the hood, the client uses Socket.IO to communicate and receives JSON patches to perform surgical updates of previous results _(side note : you don't have to think about it)_, thus optimizing bandwidth usage.
+
+Of course, it also supports standard queries and mutations (subscriptions might come in the futur).
 
 ## Install
 
@@ -113,16 +117,24 @@ You can add a custom `context` callback to your client config. It will be called
 ```javascript
 const client = createClient({
   url: "http://localhost:8080",
-  exchanges: [
-    dedupExchange,
-    cacheExchange(),
-    liveExchange({
-      url: "http://localhost:8080",
-      context() {
-        return auth().currentUser.token;
-      }
-    })
-  ]
+  context() {
+    return auth().currentUser.token;
+  }
+});
+```
+
+_Note: `createClient`, `LiveLink` and `liveExchange` all accept the same options._
+
+### Custom path
+
+You can pass any valid Socket.IO client options to the live query client, including a custom `path` :
+
+```javascript
+const client = createClient({
+  url: "http://localhost:8080",
+  socketOptions: {
+    path: "/api"
+  }
 });
 ```
 
