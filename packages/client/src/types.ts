@@ -20,7 +20,7 @@ export type OperationRecord = {
 };
 
 export type ResultObserver = {
-  next?(value: ExecutionResult): void;
+  next?(result: ExecutionResult): void;
   error?(error: any): void;
   complete?(): void;
 };
